@@ -1,0 +1,94 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OCR Studio</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 60px auto;
+      padding: 20px;
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-top: 15px;
+      cursor: pointer;
+    }
+
+    img {
+      max-width: 100%;
+      margin-top: 20px;
+    }
+
+    pre {
+      background: #f1f1f1;
+      padding: 20px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>OCR Studio</h1>
+  <p>Upload an image for OCR processing.</p>
+
+  <input type="file" id="fileInput" accept="image/png">
+
+  <button onclick="processImage()">
+    Process Image
+  </button>
+
+  <h3>Preview</h3>
+  <img id="preview">
+
+  <h3>API Response</h3>
+  <pre id="result">No image processed yet.</pre>
+
+  <script>
+    async function processImage() {
+      const fileInput = document.getElementById("fileInput");
+      const result = document.getElementById("result");
+      const preview = document.getElementById("preview");
+
+      if (fileInput.files.length === 0) {
+        alert("Please select an image");
+        return;
+      }
+
+      const file = fileInput.files[0];
+
+      // Show the uploaded image
+      preview.src = URL.createObjectURL(file);
+
+      // Prepare multipart form data
+      const formData = new FormData();
+      formData.append("file", file);
+
+      result.textContent = "Processing...";
+
+      try {
+        // Send HTTP POST request to FastAPI
+        const response = await fetch("/api/process", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Request failed");
+        }
+
+        result.textContent = JSON.stringify(data, null, 2);
+
+      } catch (error) {
+        result.textContent = error.message;
+      }
+    }
+  </script>
+</body>
+</html>
