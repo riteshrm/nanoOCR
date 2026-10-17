@@ -402,44 +402,8 @@ def resize_image(img, short_side=512):
         new_height = int(math.ceil(new_width / width * height / 32) * 32)
     resized_img = cv2.resize(img, (new_width, new_height))
     return resized_img
-def tdtr(args):
-    print("Processing TDTR")
-    if args.tdtr_zip_file is not None:
-        with zipfile.ZipFile(args.tdtr_zip_file) as z:
-            z.extractall("TD_TR")
-        src_root = Path("TD_TR/TD_TR")
-        dst_root = Path(f'{args.save_path}/TDTR')
 
-        dst_root.mkdir(parents=True, exist_ok=True)
-
-        for name in ["TD500", "TR400"]:
-            src = src_root / name
-
-            if not src.exists():
-                continue
-
-            for item in src.iterdir():
-                dst = dst_root / item.name
-
-                if item.is_dir():
-                    shutil.copytree(item, dst, dirs_exist_ok=True)
-
-                elif item.suffix == ".txt":
-                    if dst.exists():
-                        existing = dst.read_text().rstrip("\n")
-                        incoming = item.read_text().strip("\n")
-
-                        dst.write_text(existing + "\n" + incoming + "\n")
-                    else:
-                        shutil.copy2(item, dst)
-
-                else:
-                    shutil.copy2(item, dst)
-
-        shutil.rmtree("TD_TR")
-
-        print("Merged into det_data and cleaned successfully!")
-
+def process_tdtr_train_val(args):
     images_dir = os.path.join(f'{args.save_path}/TDTR', 'train_images')
     gt_dir = os.path.join(f'{args.save_path}/TDTR', "train_gts")
 
@@ -498,7 +462,7 @@ def tdtr(args):
             "original_shape": original_shape,
             "is_training": not is_val,
         }
-      
+        
 
         if is_val:
             data["shape"] = original_shape
@@ -525,6 +489,113 @@ def tdtr(args):
         output_path = os.path.join(output_dir, Path(filename).stem + ".pt")
         torch.save(data, output_path)
     print("completed")
+
+def process_tdtr_test(args):
+    images_dir = os.path.join(f'{args.save_path}/TDTR', 'test_images')
+    gt_dir = os.path.join(f'{args.save_path}/TDTR', "test_gts")
+
+    image_names = os.listdir(images_dir)
+    normalizer = NormalizeImage()
+
+    test_dir = os.path.join(args.save_path, "processed_test")
+
+    os.makedirs(test_dir, exist_ok=True)
+
+    for filename in tqdm(image_names):
+        image_path = os.path.join(images_dir, filename)
+        gt_path = os.path.join(gt_dir, filename + ".txt")
+
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError(f"Cannot read image: {image_path}")
+
+        original_shape = tuple(image.shape[:2])
+        image_polygons = []
+        image_ignore_tags = []
+
+        with open(gt_path, encoding="utf-8-sig") as reader:
+            for line in reader:
+                if not line.strip():
+                    continue
+
+                parts = [part.strip() for part in line.strip().split(",")]
+                label = parts[-1]
+
+                polygon = np.asarray(
+                    parts[:-1], dtype=np.float32
+                ).reshape(-1, 2)
+
+                image_polygons.append(polygon)
+
+                image_ignore_tags.append(label in ("1", "###"))
+
+        data = {
+            "image": image.astype(np.float32),
+            "polygons": image_polygons,
+            "ignore_tags": np.asarray(image_ignore_tags, dtype=np.uint8),
+            "filename": filename,
+            "original_shape": original_shape,
+            "is_training": False,
+        }
+        
+        data["shape"] = original_shape
+        data["image"] = resize_image(data["image"], short_side=512)
+
+        data = normalizer.process(data)
+
+        for key, value in data.items():
+            if isinstance(value, np.ndarray):
+                data[key] = torch.from_numpy(value)
+            elif key == "polygons":
+                data[key] = [
+                    torch.as_tensor(poly, dtype=torch.float32)
+                    for poly in value
+                ]
+
+        output_path = os.path.join(test_dir, Path(filename).stem + ".pt")
+        torch.save(data, output_path)
+    print("completed")
+
+
+def tdtr(args):
+    print("Processing TDTR")
+    if args.tdtr_zip_file is not None:
+        with zipfile.ZipFile(args.tdtr_zip_file) as z:
+            z.extractall("TD_TR")
+        src_root = Path("TD_TR/TD_TR")
+        dst_root = Path(f'{args.save_path}/TDTR')
+
+        dst_root.mkdir(parents=True, exist_ok=True)
+
+        for name in ["TD500", "TR400"]:
+            src = src_root / name
+
+            if not src.exists():
+                continue
+
+            for item in src.iterdir():
+                dst = dst_root / item.name
+
+                if item.is_dir():
+                    shutil.copytree(item, dst, dirs_exist_ok=True)
+
+                elif item.suffix == ".txt":
+                    if dst.exists():
+                        existing = dst.read_text().rstrip("\n")
+                        incoming = item.read_text().strip("\n")
+
+                        dst.write_text(existing + "\n" + incoming + "\n")
+                    else:
+                        shutil.copy2(item, dst)
+
+                else:
+                    shutil.copy2(item, dst)
+
+        shutil.rmtree("TD_TR")
+
+        print("Merged into det_data and cleaned successfully!")
+    process_tdtr_train_val(args)
+    process_tdtr_test(args)
 
 def convert_textocr(args, data_folder, split_type):
     print(f"Processing TextOCR {split_type}")
@@ -613,7 +684,7 @@ def convert_textocr(args, data_folder, split_type):
 
                 image_ignore_tags.append(label in ("1", "###"))
 
-        is_val = split_type=="val"
+        is_val = split_type=="val" or split_type=="test"
 
         data = {
             "image": image.astype(np.float32),
@@ -662,22 +733,24 @@ def textocr(args):
 
     shutil.copy2('train.json',os.path.join(textocr_folder, 'train.json'))
     shutil.copy2('val.json',os.path.join(textocr_folder, 'val.json'))
+    shutil.copy2('test.json',os.path.join(textocr_folder, 'test.json'))
 
-    with zipfile.ZipFile(args.textocr_zip_file) as archive:
-        for member in archive.infolist():
-            if member.is_dir():
-                continue
+    for zip_file in ['train_val_images.zip']:
+        with zipfile.ZipFile(zip_file) as archive:
+            for member in archive.infolist():
+                if member.is_dir():
+                    continue
 
-            filename = member.filename.replace("\\", "/").split("/")[-1]
+                filename = member.filename.replace("\\", "/").split("/")[-1]
 
-            if not filename.lower().endswith((".jpg", ".jpeg", ".png")):
-                continue
+                if not filename.lower().endswith((".jpg", ".jpeg", ".png")):
+                    continue
 
-            destination = os.path.join(images_folder, filename)
+                destination = os.path.join(images_folder, filename)
 
-            with archive.open(member) as source:
-                with open(destination, "wb") as target:
-                    shutil.copyfileobj(source, target)
+                with archive.open(member) as source:
+                    with open(destination, "wb") as target:
+                        shutil.copyfileobj(source, target)
 
     convert_textocr(args, f"{args.save_path}/TextOCR", "val")
     convert_textocr(args, f"{args.save_path}/TextOCR", "train")
@@ -691,7 +764,7 @@ def main():
     parser.add_argument("--textocr_zip_file", type=str, default="train_val_images.zip")
     parser.add_argument("--save_path", type=str, default='det_data')
     parser.add_argument("--split", type=float, default=0.1)
-    parser.add_argument("--data_type", type=str, default="textocr")
+    parser.add_argument("--data_type", type=str, default="both")
 
     args = parser.parse_args()
 

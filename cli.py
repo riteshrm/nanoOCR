@@ -3,10 +3,9 @@ import argparse
 import json
 import sys
 from pathlib import Path
-
 import cv2
 
-from pp_engine import OCREngine
+from ocr_engine import OCREngine
 
 
 def main():

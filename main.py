@@ -15,7 +15,7 @@ from fastapi.responses import (
     RedirectResponse,
 )
 
-from custom_engine_onnx import OCREngine
+from ocr_engine import OCREngine
 
 app = FastAPI(title="Leegality OCR")
 engine = OCREngine()
