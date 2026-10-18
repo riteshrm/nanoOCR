@@ -1,7 +1,6 @@
 det_checkpoints
 det_data
 det_train_logs
-inference_checkpoints
 rec_checkpoints*
 rec_data
 rec_train_logs*
