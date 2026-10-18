@@ -7,7 +7,6 @@ rec_train_logs*
 *.pt
 *.png
 *.jpg
-*.json
 *.gz
 *.zip
 __pycache__/
