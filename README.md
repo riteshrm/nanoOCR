@@ -1,8 +1,16 @@
-# End-to-End OCR Pipeline
+
+# nanoOCR
+
+A lightweight, end-to-end OCR pipeline for text detection, recognition, and redaction, optimized for CPU inference using ONNX Runtime and INT8 quantization.
 
 ## Project Overview
 
-This project aims to build an end-to-end OCR pipeline with two models responsible for text region detection and text recognition within those regions.
+nanoOCR consists of two deep learning models:
+
+1. **Text Detector (DBNet):** Identifies text regions within an image.
+2. **Text Recognizer (CNN-BiLSTM):** Recognizes text from detected regions using CTC decoding.
+
+The pipeline also supports text redaction through image inpainting and provides both a command-line interface (CLI) and a FastAPI-based web application.
 
 ## Quick Start: Inference
 
@@ -60,7 +68,7 @@ See the [recognized text and bounding boxes](assets/img_text.json) for the full 
 
 ### Datasets
 
-1. IIIT5K, as mentioned in the assignment PDF, for text recognition.
+1. IIIT5K
 2. MJSynth for text recognition.
 3. TD TR for text region detection.
 4. TextOCR for text region detection.
