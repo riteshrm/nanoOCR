@@ -35,8 +35,7 @@ def run(args):
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size,shuffle=True, collate_fn=rec_collate, num_workers=8)
     val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=rec_collate, num_workers=8)
 
-    
-    model = CRNN(len(vocab)+1, args.height).to(device)
+    model = CRNN(len(vocab)+1, args.height, args.conv_type).to(device)
     criterion = nn.CTCLoss(blank=0, zero_infinity=True)  # ignores samples whose label is too long for T
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.learning_rate, total_steps=args.num_epochs * len(train_dataloader))
@@ -123,10 +122,11 @@ def main():
     parser.add_argument("--num_epochs", type=int, default=1000)
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--data_path", type=str, default='rec_data/processed')
-    parser.add_argument("--project_name", type=str, default='CRNN_CTC_1')
+    parser.add_argument("--project_name", type=str, default='CRNN_CTC')
     parser.add_argument("--ckpt_dir", type=str, default='rec_checkpoints_1')
     parser.add_argument("--resume", type=str, default='True')
     parser.add_argument("--log_dir", type=str, default='rec_train_logs_1')
+    parser.add_argument("--conv_type", type=str, default='norm')
 
     args = parser.parse_args()
     

@@ -1,8 +1,52 @@
+import torch
 import torch.nn as nn
-class CNNBlock(nn.Module):
-    def __init__(self, in_channels, out_channels,kernel_size=3, padding=1, pool_size=(2, 2), dropout=0.4):
+
+class SqueezeExcitationModule(nn.Module):
+    def __init__(self, channel, reduction=4):
         super().__init__()
-        self.cnn = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding)
+
+        reduced_channels = max(1, channel // reduction)
+
+        self.se = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(channel, reduced_channels, 1),
+            nn.ReLU(),
+            nn.Conv2d(reduced_channels, channel, 1),
+            nn.Hardsigmoid()
+        )
+
+    def forward(self, x):
+        return x * self.se(x)
+    
+class DWSEPWConv(nn.Module):
+    def __init__( self, in_channels, out_channels, kernel_size, padding):
+        super().__init__()
+        self.dw_conv = nn.Sequential(nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=in_channels,
+                kernel_size=kernel_size,
+                padding=padding,
+                groups=in_channels,
+            ),
+            nn.BatchNorm2d(in_channels),
+            nn.Hardswish())
+        self.squeeze_excitation = SqueezeExcitationModule(in_channels)
+        self.pw_conv = nn.Conv2d(
+            in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1
+        )
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        hidden_states = self.dw_conv(hidden_states)
+        hidden_states = self.squeeze_excitation(hidden_states)
+        hidden_states = self.pw_conv(hidden_states)
+        return hidden_states
+    
+class CNNBlock(nn.Module):
+    def __init__(self, in_channels, out_channels,kernel_size=3, padding=1, pool_size=(2, 2), dropout=0.4, conv_type='norm'):
+        super().__init__()
+        if conv_type=='dwsepw':
+            self.cnn = DWSEPWConv(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding)
+        else:
+            self.cnn = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding)
         self.batchnorm = nn.BatchNorm2d(out_channels)
         self.act = nn.ReLU()
         self.dropout = nn.Dropout2d(p=dropout)
@@ -14,6 +58,27 @@ class CNNBlock(nn.Module):
         x = self.dropout(x)
         x = self.maxpool(x)
         return x
+
+
+class CRNN(nn.Module):
+    def __init__(self, num_classes, height=32, conv_type='norm'):
+        super().__init__()
+        channels = [ 1, 64, 128, 256, 256]
+        pooling = [(2, 2), (2, 2), (2, 1), (2, 1)]
+        self.cnns = nn.ModuleList([CNNBlock(in_channels=channels[i], out_channels=channels[i+1], pool_size=pooling[i], conv_type=conv_type) for i, pool_size in enumerate(pooling)])
+        self.rnn = nn.LSTM(256 * (height // 16), 128, num_layers=2,
+                           bidirectional=True, dropout=0.4, batch_first=True)
+        self.fc = nn.Linear(256, num_classes)
+ 
+    def forward(self, x):
+        for cnnblock in self.cnns:
+            x = cnnblock(x)
+        b, c, h, t = x.shape
+        x = x.permute(0, 3, 1, 2).reshape(b, t, c * h)   # (B, T, C*h)
+        
+        x, _ = self.rnn(x)
+        return self.fc(x).permute(1, 0, 2)
+
 
 class CRNN2(nn.Module):
     def __init__(self, num_classes):
@@ -80,24 +145,4 @@ class CRNN2(nn.Module):
         b, c, h, t = x.shape
         x = x.permute(0, 3, 1, 2).reshape(b, t, c * h)   # (B, T, C*h)
         x, _ = self.blstm_1(x)
-        return self.fc(x).permute(1, 0, 2)
-
-
-class CRNN(nn.Module):
-    def __init__(self, num_classes, height):
-        super().__init__()
-        channels = [ 1, 64, 128, 256, 256]
-        pooling = [(2, 2), (2, 2), (2, 1), (2, 1)]
-        self.cnns = nn.ModuleList([CNNBlock(in_channels=channels[i], out_channels=channels[i+1], pool_size=pooling[i]) for i, pool_size in enumerate(pooling)])
-        self.rnn = nn.LSTM(256 * (height // 16), 128, num_layers=2,
-                           bidirectional=True, dropout=0.4, batch_first=True)
-        self.fc = nn.Linear(256, num_classes)
- 
-    def forward(self, x):
-        for cnnblock in self.cnns:
-            x = cnnblock(x)
-        b, c, h, t = x.shape
-        x = x.permute(0, 3, 1, 2).reshape(b, t, c * h)   # (B, T, C*h)
-        
-        x, _ = self.rnn(x)
         return self.fc(x).permute(1, 0, 2)

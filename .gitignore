@@ -10,9 +10,9 @@ rec_train_logs*
 *.png
 *.jpg
 *.json
-*.txt
 *.gz
 *.zip
 __pycache__/
 .ipynb_checkpoints/
 *.ipynb
+.vscode

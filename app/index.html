@@ -1,0 +1,27 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OCR</title>
+    <link rel="stylesheet" href="/app/style.css">
+</head>
+<body>
+    <main class="container">
+        <header>
+            <h1>OCR</h1>
+            <p>Text recognition and redaction</p>
+        </header>
+
+        <section class="card">
+            <h2>Upload Image</h2>
+            <form action="/ocr" method="post"
+                  enctype="multipart/form-data">
+                <input type="file" name="file" accept="image/*" required>
+                <button type="submit">Process Image</button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

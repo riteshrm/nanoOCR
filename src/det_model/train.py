@@ -66,7 +66,7 @@ def run(args):
     evaluator = DetectionIoUEvaluator()
     
     model = BasicModel().to(device)
-    criterion = L1BalanceCELoss()  # ignores samples whose label is too long for T
+    criterion = L1BalanceCELoss() 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.learning_rate, total_steps=args.num_epochs * len(train_dataloader))
 

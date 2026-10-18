@@ -16,6 +16,7 @@ import json
 from tqdm import tqdm
 random.seed(42)
 
+#Most of preprocessing steps have been adopted from https://github.com/MhLiao/DB
 class RandomCropData():
     max_tries = 50
     min_crop_side_ratio =0.1

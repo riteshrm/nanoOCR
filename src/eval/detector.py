@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from src.eval.seg_detector_representer import SegDetectorRepresenter
 from src.eval.iou import DetectionIoUEvaluator
+import time 
+torch.set_num_threads(4)
 
 def validate(representer, evaluator, batch, out, results):
     boxes_batch, scores_batch = representer.represent(batch, out)
@@ -44,7 +46,10 @@ def run(args):
     test_dataset = DETValDataset(os.path.join(args.data_path, 'processed_test'))
 
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if args.device is not None:
+            device = args.device
+    else:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
     test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False, collate_fn=det_val_collate)
@@ -56,25 +61,30 @@ def run(args):
     state_dict = torch.load(ckpt_path, map_location=device, weights_only=True)
     model.load_state_dict(state_dict)
     model.eval()
-    totals = {
-        "errors": 0,
-        "matches": 0,
-        "predicted_chars": 0,
-        "target_chars": 0,
-        "exact_words": 0,
-        "words": 0,
-    }
+
+    latencies = []
+    for _ in range(20):
+        inp = torch.zeros(1, 3, 512, 512).to(device)
+        model(inp)
+
     with torch.no_grad():
         results = []
         for batch in tqdm(test_dataloader):
-            x = batch['image']
-            out = model(x.to(device)).to('cpu')
+            x = batch['image'].to(device)
+            start = time.perf_counter()
+            pred = model(x)
+            latency = (time.perf_counter() - start) * 1000
+            out = pred.to('cpu')
+            latencies.append(latency)
             validate(representer, evaluator, batch, out, results)
         test_metrics = evaluator.combine_results(results)
 
     print(f"Precision: {test_metrics['precision']:.3f}")
-    print(f"Recall: {test_metrics['precision']:.3f}")
+    print(f"Recall: {test_metrics['recall']:.3f}")
     print(f"hmean {test_metrics['hmean']:.3f}")
+    print(f"Mean latency:   {np.mean(latencies):.3f} ms")
+    print(f"Median latency: {np.median(latencies):.3f} ms")
+    print(f"P95 latency:    {np.percentile(latencies, 95):.3f} ms")
 
 def main():
     parser = argparse.ArgumentParser(description="Process raw text to tokens")
@@ -84,6 +94,7 @@ def main():
     parser.add_argument("--data_path", type=str, default='det_data')
     parser.add_argument("--ckpt_path", type=str, default=None)
     parser.add_argument("--ckpt_dir", type=str, default='det_checkpoints')
+    parser.add_argument("--device", type=str, default='cpu')
 
     args = parser.parse_args()
     

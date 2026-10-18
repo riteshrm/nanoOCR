@@ -20,10 +20,13 @@ class DETDataReader(CalibrationDataReader):
         dataset = DETValDataset(os.path.join(data_path, 'processed_val'))
         val_dataloader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=det_val_collate)
         samples = []
+        cnt=0
         for batch in val_dataloader:
             x = batch['image'].cpu().numpy()
             samples.append(x)
-            break
+            cnt+=1
+            if cnt==10:
+                break
 
         self.nchw_data_list = samples
         self.input_name = session.get_inputs()[0].name
@@ -70,10 +73,12 @@ def run(args):
     dynamo=False,
     dynamic_axes={
         "images": {
+            0: "bsz",
             2: "height",
             3: "width"
         },
         "pred": {
+            0: "bsz",
             2: "out_height",
             3: "out_width"
         }
@@ -97,7 +102,7 @@ def run(args):
     options = ort.SessionOptions()
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     options.optimized_model_filepath = (
-        f"{args.save_dir}/det_model_int8_cpu_optimized.onnx"
+        f"{args.save_dir}/det_model.onnx"
     )
 
     session = ort.InferenceSession(

@@ -1,8 +1,10 @@
+#Adopted from https://github.com/MhLiao/DB
+import torch
 import torch.nn as nn
 import math
 import torch.utils.model_zoo as model_zoo
 BatchNorm2d = nn.BatchNorm2d
-
+from collections import OrderedDict
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -332,12 +334,6 @@ def resnet152(pretrained=True, **kwargs):
             model_urls['resnet152']), strict=False)
     return model
 
-from collections import OrderedDict
-
-import torch
-import torch.nn as nn
-BatchNorm2d = nn.BatchNorm2d
-
 class SegDetector(nn.Module):
     def __init__(self,
                  in_channels=[64, 128, 256, 512],
@@ -496,5 +492,4 @@ class BasicModel(nn.Module):
                     k= 50)
 
     def forward(self, data, *args, **kwargs):
-        # return self.backbone(data)
         return self.decoder(self.backbone(data), *args, **kwargs)

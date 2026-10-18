@@ -5,7 +5,7 @@ import uuid
 import html
 import re
 import numpy as np
-
+from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -17,27 +17,19 @@ from fastapi.responses import (
 
 from ocr_engine import OCREngine
 
-app = FastAPI(title="Leegality OCR")
+app = FastAPI(title="OCR")
+app.mount("/app", StaticFiles(directory="app"), name="app")
 engine = OCREngine()
 
 OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
-# 1. Home page: image upload
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 def home():
-    return """
-    <h1>Leegality OCR</h1>
-    <form action="/ocr" method="post"
-          enctype="multipart/form-data">
-        <input type="file" name="file" accept="image/*" required>
-        <button type="submit">Process Image</button>
-    </form>
-    """
+    return FileResponse("app/index.html")
 
 
-# 2. Process image
 @app.post("/ocr")
 async def process_image(file: UploadFile = File(...)):
     content = await file.read()
@@ -89,49 +81,89 @@ def get_output_file(job_id, suffix):
     return matches[0]
 
 
-# 3. Show OCR results in browser
 @app.get("/results/{job_id}", response_class=HTMLResponse)
 def show_results(job_id: uuid.UUID):
     json_path = get_output_file(job_id, "_text.json")
+    parsed_text = json.loads(json_path.read_text(encoding="utf-8"))
 
-    parsed_text = json.loads(
-        json_path.read_text(encoding="utf-8")
-    )
+    rows = ""
+    for i, item in enumerate(parsed_text, 1):
+        word = item["word"]
+        if isinstance(word, list):
+            word = word[0] if word else ""
 
-    display_text = html.escape(
-        json.dumps(parsed_text, indent=2, ensure_ascii=False)
-    )
+        box = item["bounding_box"]
+
+        rows += f"""
+        <tr>
+            <td>{i}</td>
+            <td>{html.escape(str(word))}</td>
+            <td>{html.escape(str(box))}</td>
+        </tr>
+        """
 
     return f"""
-    <h1>OCR Results</h1>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>OCR Results</title>
+        <link rel="stylesheet" href="/app/style.css">
+    </head>
+    <body>
+        <main class="container">
+            <header>
+                <h1>OCR Results</h1>
+                <p>Recognition and redaction completed</p>
+            </header>
 
-    <h2>Parsed Text</h2>
-    <pre>{display_text}</pre>
+            <section class="card">
+                <h2>Recognized Text</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Text</th>
+                                <th>Bounding Box</th>
+                            </tr>
+                        </thead>
+                        <tbody>{rows}</tbody>
+                    </table>
+                </div>
+            </section>
 
-    <a href="/download/{job_id}/text">
-        Download JSON
-    </a>
+            <section class="card">
+                <h2>Redacted Image</h2>
+                <img class="results-image"
+                     src="/results/{job_id}/preview"
+                     alt="Redacted image">
+            </section>
 
-    <h2>Redacted Image</h2>
-    <img src="/results/{job_id}/preview"
-         style="max-width:90%; display:block; margin-bottom:20px;">
+            <section class="card">
+                <div class="actions">
+                    <a class="download" href="/download/{job_id}/text">
+                        Download JSON
+                    </a>
+                    <a class="download" href="/download/{job_id}/redacted">
+                        Download Redacted PNG
+                    </a>
+                </div>
+            </section>
 
-    <a href="/download/{job_id}/redacted">
-        Download Redacted Image
-    </a>
-
-    <p><a href="/">Process another image</a></p>
+            <a class="back" href="/">← Process another image</a>
+        </main>
+    </body>
+    </html>
     """
 
-
-# 4. Display image inside browser
 @app.get("/results/{job_id}/preview")
 def preview_image(job_id: uuid.UUID):
     path = get_output_file(job_id, "_redacted.png")
     return FileResponse(path, media_type="image/png")
 
 
-# 5. Download individual files
 @app.get("/download/{job_id}/{file_type}")
 def download(job_id: uuid.UUID, file_type: str):
     if file_type == "text":

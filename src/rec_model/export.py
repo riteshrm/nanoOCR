@@ -1,7 +1,7 @@
 import os
 import argparse
 import torch
-from src.rec_model.model import CRNN2
+from src.rec_model.model import CRNN2, CRNN
 from src.utils.utils import get_latest_checkpoint
 import json
 
@@ -20,10 +20,13 @@ class RECDataReader(CalibrationDataReader):
         dataset = RECDataset(data_path, 'val.csv')
         val_dataloader = DataLoader(dataset, batch_size=1, shuffle=True, collate_fn=rec_collate)
         samples = []
+        cnt=0
         for x, _, _ in val_dataloader:
             x = x.cpu().numpy()
             samples.append(x)
-            break
+            cnt+=1
+            if cnt==10:
+                break
 
         self.nchw_data_list = samples
         self.input_name = session.get_inputs()[0].name
@@ -56,7 +59,7 @@ def run(args):
     with open(f'{args.data_path}/itoc.json', 'w') as f:
         json.dump(itoc, f)
 
-    model = CRNN2(num_classes=len(vocab) + 1)
+    model = CRNN(len(vocab) + 1, args.height, args.conv_type)
     model.load_state_dict(state_dict)
     model.eval()
 
@@ -71,7 +74,15 @@ def run(args):
         opset_version=17,
         dynamo=False,
         verify=True,
-    )
+        dynamic_axes={
+                "images": {
+                    0: "bsz",
+
+                },
+                "logits": {
+                    1: "bsz",
+                }
+            })
 
     quant_pre_process(f"{args.save_dir}/rec_model_fp32.onnx", f"{args.save_dir}/rec_model_opt_fp32.onnx", skip_symbolic_shape=True,)
     dr = RECDataReader(
@@ -90,7 +101,7 @@ def run(args):
     options = ort.SessionOptions()
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     options.optimized_model_filepath = (
-        f"{args.save_dir}/rec_model_int8_cpu_optimized.onnx"
+        f"{args.save_dir}/rec_model.onnx"
     )
 
     session = ort.InferenceSession(
@@ -103,9 +114,11 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description="Process raw text to tokens")
     parser.add_argument('--ckpt_path', type=str, default=None)
-    parser.add_argument('--ckpt_dir', type=str, default="rec_checkpoints")
+    parser.add_argument('--height', type=int, default=32)
+    parser.add_argument('--ckpt_dir', type=str, default="rec_checkpoints_1")
     parser.add_argument('--data_path', type=str, default="rec_data/processed")
     parser.add_argument('--save_dir', type=str, default="inference_checkpoints")
+    parser.add_argument("--conv_type", type=str, default='norm')
 
     args = parser.parse_args()
 

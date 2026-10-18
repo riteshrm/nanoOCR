@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from itertools import groupby
 from src.det_model.model import BasicModel
-from src.rec_model.model import CRNN2
+from src.rec_model.model import CRNN
 from shapely.geometry import Polygon
 import pyclipper
 import math
@@ -203,7 +203,7 @@ class DETEngine:
 
 class RECEngine:
     def __init__(self):
-        self.model = CRNN2(len(itoc)+1).eval()
+        self.model = CRNN(len(itoc)+1).eval()
         self.model.load_state_dict(torch.load(f"{INFERENCE_CHECKPOINTS}/rec_model_fp32.bin", weights_only=False))
 
     def process(self, image):

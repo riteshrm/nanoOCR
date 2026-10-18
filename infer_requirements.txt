@@ -1,0 +1,8 @@
+fastapi==0.143.0
+uvicorn==0.54.0
+numpy==2.2.6
+onnxruntime==1.23.2
+opencv_python-headless==4.14.0.94
+python-multipart==0.0.32
+pyclipper==1.4.0
+Shapely==2.1.2
