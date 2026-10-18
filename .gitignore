@@ -4,7 +4,6 @@ det_train_logs
 rec_checkpoints*
 rec_data
 rec_train_logs*
-*.onnx
 *.pt
 *.png
 *.jpg
