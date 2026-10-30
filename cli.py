@@ -10,7 +10,7 @@ from ocr_engine import OCREngine
 
 def main():
     parser = argparse.ArgumentParser(
-        description="OCR transcription and text redaction"
+        description="OCR transcription with bounding boxes and text annotations"
     )
 
     parser.add_argument(
@@ -45,13 +45,13 @@ def main():
     engine = OCREngine()
 
     # Run the same engine used by FastAPI
-    text_results, redacted_image = engine.process(image)
+    text_results, annotated_image = engine.process(image)
 
     # Output paths
     stem = args.image.stem
 
     json_path = args.output_dir / f"{stem}_text.json"
-    image_path = args.output_dir / f"{stem}_redacted.png"
+    image_path = args.output_dir / f"{stem}_annotated.png"
 
     # Save JSON
     with open(json_path, "w", encoding="utf-8") as f:
@@ -62,13 +62,13 @@ def main():
             ensure_ascii=False
         )
 
-    # Save redacted image
-    if not cv2.imwrite(str(image_path), redacted_image):
-        print("Failed to save redacted image", file=sys.stderr)
+    # Save annotated image
+    if not cv2.imwrite(str(image_path), annotated_image):
+        print("Failed to save annotated image", file=sys.stderr)
         sys.exit(1)
 
     print(f"JSON saved: {json_path}")
-    print(f"Redacted image saved: {image_path}")
+    print(f"Annotated image saved: {image_path}")
 
 
 if __name__ == "__main__":

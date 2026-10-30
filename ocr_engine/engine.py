@@ -6,6 +6,7 @@ import onnxruntime as ort
 from shapely.geometry import Polygon
 import pyclipper
 import math
+
 RGB_MEAN = np.array([122.67891434, 116.66876762, 104.00698793])
 IMAGE_SHORT_SIDE=512
 RESULT_DIR = 'output'
@@ -14,6 +15,48 @@ THRESH=0.3
 MIN_SIZE = 3
 INFERENCE_CHECKPOINTS='inference_checkpoints'
 MAX_CANDIDATES = 100
+
+def draw_annotations(image, text_results):
+    """Draw OCR boxes (top, left, bottom, right) and recognized text."""
+    annotated = image.copy()
+    height, width = annotated.shape[:2]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.5
+    color = (0, 180, 0)
+
+    for index, item in enumerate(text_results, 1):
+        top, left, bottom, right = map(int, item["bounding_box"])
+        left = max(0, min(left, width - 1))
+        top = max(0, min(top, height - 1))
+        right = max(left, min(right - 1, width - 1))
+        bottom = max(top, min(bottom - 1, height - 1))
+        cv2.rectangle(annotated, (left, top), (right, bottom), color, 2)
+
+        word = item["word"]
+        if isinstance(word, list):
+            word = word[0] if word else ""
+        label = f"{word}"
+        (text_width, text_height), baseline = cv2.getTextSize(
+            label, font, font_scale, 1
+        )
+        label_left = max(0, min(left, width - text_width - 6))
+        label_top = top - text_height - baseline - 6
+        if label_top < 0:
+            label_top = min(bottom + 3, max(0, height - text_height - baseline - 6))
+        cv2.rectangle(
+            annotated,
+            (label_left, label_top),
+            (label_left + text_width + 6, label_top + text_height + baseline + 6),
+            color,
+            cv2.FILLED,
+        )
+        cv2.putText(
+            annotated, label, (label_left + 3, label_top + text_height + 3),
+            font, font_scale, (255, 255, 255), 1, cv2.LINE_AA,
+        )
+
+    return annotated
+
 #Detector
 def resize_image(img):
     height, width, _ = img.shape
@@ -186,7 +229,7 @@ def ctc_decoder(logits):
 class DETEngine:
     def __init__(self):
         self.model = ort.InferenceSession(
-                    f"{INFERENCE_CHECKPOINTS}/det_model_int8_cpu_optimized.onnx",
+                    f"{INFERENCE_CHECKPOINTS}/det_model.onnx",
                     providers=["CPUExecutionProvider"])
         
     def process(self, image):
@@ -205,7 +248,7 @@ class DETEngine:
 class RECEngine:
     def __init__(self):
             self.model = ort.InferenceSession(
-            f"{INFERENCE_CHECKPOINTS}/rec_model_int8_cpu_optimized.onnx",
+            f"{INFERENCE_CHECKPOINTS}/rec_model.onnx",
             providers=["CPUExecutionProvider"]
             )
             
@@ -224,14 +267,13 @@ class OCREngine:
         self.rec_model = RECEngine()
 
     def process(self, image):
+        """Return recognized text records and an annotated copy of the image."""
         final_boxes = self.det_model.process(image)
         
-        mask = np.zeros(image.shape[:2], dtype=np.uint8)
         text_results = []
 
         for polygon in final_boxes:
             polygon = np.asarray(polygon).astype(np.int32).reshape(-1, 2)
-            cv2.fillPoly(mask, [polygon], 255)
             x, y, w, h = cv2.boundingRect(polygon)
             left = max(0, x)
             top = max(0, y)
@@ -245,14 +287,4 @@ class OCREngine:
             "word": pred_texts,
             "bounding_box": [y, x, bottom, right],})
 
-        kernel = np.ones((3, 3), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=1)
-
-        redacted = cv2.inpaint(
-            image,
-            mask,
-            inpaintRadius=3,
-            flags=cv2.INPAINT_NS,
-        )
-
-        return text_results, redacted
+        return text_results, draw_annotations(image, text_results)

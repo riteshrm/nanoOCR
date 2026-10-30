@@ -1,7 +1,7 @@
 
 # nanoOCR
 
-A lightweight, end-to-end OCR pipeline for text detection, recognition, and redaction, optimized for CPU inference using ONNX Runtime and INT8 quantization.
+A lightweight, end-to-end OCR pipeline for text detection, recognition, and image annotation, optimized for CPU inference using ONNX Runtime and INT8 quantization.
 
 ## Project Overview
 
@@ -10,7 +10,7 @@ nanoOCR consists of two deep learning models:
 1. **Text Detector (DBNet):** Identifies text regions within an image.
 2. **Text Recognizer (CNN-BiLSTM):** Recognizes text from detected regions using CTC decoding.
 
-The pipeline also supports text redaction through image inpainting and provides both a command-line interface (CLI) and a FastAPI-based web application.
+Both the command-line interface (CLI) and FastAPI-based web application produce annotated images with text bounding boxes and recognized text labels, along with JSON results.
 
 ## Quick Start: Inference
 
@@ -32,6 +32,11 @@ You can run either the web app or the CLI.
 uvicorn main:app
 ```
 
+The web app previews and downloads an annotated image with green bounding boxes
+and text labels, plus the recognized text as JSON. Bounding boxes in
+the JSON use `[top, left, bottom, right]` coordinates. Labels use OpenCV's basic
+Latin font; labels may overlap in dense images.
+
 ### CLI
 
 ```bash
@@ -40,16 +45,22 @@ uvicorn main:app
 
 This saves two files:
 
-- `image_redacted.png`: Attempts to remove all text regions from the image.
+- `image_annotated.png`: Shows the original image with text bounding boxes and recognized text labels.
 - `image_text.json`: Contains the text present in the image.
 
 ## Example Results
 
-The following example illustrates text detection, recognition, and redaction on a sample image.
+The following example shows the original image alongside its annotated output, with bounding boxes and recognized text labels.
 
-| Input image | Redacted image |
+| Input image | Annotated image |
 | --- | --- |
-| ![Input image](assets/img.jpg) | ![Redacted image](assets/img_redacted.png) |
+| ![Input image](assets/img.jpg) | ![Annotated image with text bounding boxes and labels](assets/img_annotated.png) |
+
+To reproduce this example:
+
+```bash
+python cli.py assets/img.jpg --output-dir assets
+```
 
 **Detected text and bounding boxes:**
 

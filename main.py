@@ -42,7 +42,7 @@ async def process_image(file: UploadFile = File(...)):
     if image is None:
         raise HTTPException(400, "Invalid image")
 
-    text_results, redacted_image = await run_in_threadpool(
+    text_results, annotated_image = await run_in_threadpool(
         engine.process, image
     )
 
@@ -54,14 +54,14 @@ async def process_image(file: UploadFile = File(...)):
     stem = re.sub(r"[^a-zA-Z0-9_-]", "_", stem) or "image"
 
     json_path = job_dir / f"{stem}_text.json"
-    image_path = job_dir / f"{stem}_redacted.png"
+    image_path = job_dir / f"{stem}_annotated.png"
 
     json_path.write_text(
         json.dumps(text_results, indent=2, ensure_ascii=False),
         encoding="utf-8"
     )
 
-    if not cv2.imwrite(str(image_path), redacted_image):
+    if not cv2.imwrite(str(image_path), annotated_image):
         raise HTTPException(500, "Failed to save image")
 
     return RedirectResponse(
@@ -115,7 +115,7 @@ def show_results(job_id: uuid.UUID):
         <main class="container">
             <header>
                 <h1>OCR Results</h1>
-                <p>Recognition and redaction completed</p>
+                <p>Text recognition and annotation completed</p>
             </header>
 
             <section class="card">
@@ -135,10 +135,10 @@ def show_results(job_id: uuid.UUID):
             </section>
 
             <section class="card">
-                <h2>Redacted Image</h2>
+                <h2>Annotated Image</h2>
                 <img class="results-image"
                      src="/results/{job_id}/preview"
-                     alt="Redacted image">
+                     alt="Image with text bounding boxes and numbered text labels">
             </section>
 
             <section class="card">
@@ -146,8 +146,8 @@ def show_results(job_id: uuid.UUID):
                     <a class="download" href="/download/{job_id}/text">
                         Download JSON
                     </a>
-                    <a class="download" href="/download/{job_id}/redacted">
-                        Download Redacted PNG
+                    <a class="download" href="/download/{job_id}/annotated">
+                        Download Annotated PNG
                     </a>
                 </div>
             </section>
@@ -160,7 +160,7 @@ def show_results(job_id: uuid.UUID):
 
 @app.get("/results/{job_id}/preview")
 def preview_image(job_id: uuid.UUID):
-    path = get_output_file(job_id, "_redacted.png")
+    path = get_output_file(job_id, "_annotated.png")
     return FileResponse(path, media_type="image/png")
 
 
@@ -170,8 +170,8 @@ def download(job_id: uuid.UUID, file_type: str):
         path = get_output_file(job_id, "_text.json")
         media_type = "application/json"
 
-    elif file_type == "redacted":
-        path = get_output_file(job_id, "_redacted.png")
+    elif file_type == "annotated":
+        path = get_output_file(job_id, "_annotated.png")
         media_type = "image/png"
 
     else:

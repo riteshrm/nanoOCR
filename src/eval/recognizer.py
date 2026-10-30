@@ -133,7 +133,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--data_path", type=str, default='rec_data/processed')
     parser.add_argument("--ckpt_path", type=str, default=None)
-    parser.add_argument("--ckpt_dir", type=str, default='rec_checkpoints_1')
+    parser.add_argument("--ckpt_dir", type=str, default='rec_checkpoints')
     parser.add_argument("--device", type=str, default='cpu')
 
     args = parser.parse_args()

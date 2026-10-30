@@ -41,7 +41,7 @@ class DWSEPWConv(nn.Module):
         return hidden_states
     
 class CNNBlock(nn.Module):
-    def __init__(self, in_channels, out_channels,kernel_size=3, padding=1, pool_size=(2, 2), dropout=0.4, conv_type='norm'):
+    def __init__(self, in_channels, out_channels,kernel_size=3, padding=1, pool_size=(2, 2), dropout=0.5, conv_type='norm'):
         super().__init__()
         if conv_type=='dwsepw':
             self.cnn = DWSEPWConv(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, padding=padding)
@@ -65,7 +65,7 @@ class CRNN(nn.Module):
         super().__init__()
         channels = [ 1, 64, 128, 256, 256]
         pooling = [(2, 2), (2, 2), (2, 1), (2, 1)]
-        self.cnns = nn.ModuleList([CNNBlock(in_channels=channels[i], out_channels=channels[i+1], pool_size=pooling[i], conv_type=conv_type) for i, pool_size in enumerate(pooling)])
+        self.cnns = nn.ModuleList([CNNBlock(in_channels=channels[i], out_channels=channels[i+1], pool_size=pool_size, conv_type=conv_type) for i, pool_size in enumerate(pooling)])
         self.rnn = nn.LSTM(256 * (height // 16), 128, num_layers=2,
                            bidirectional=True, dropout=0.4, batch_first=True)
         self.fc = nn.Linear(256, num_classes)
