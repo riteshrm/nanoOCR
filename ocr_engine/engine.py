@@ -21,7 +21,7 @@ def draw_annotations(image, text_results):
     annotated = image.copy()
     height, width = annotated.shape[:2]
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.5
+    font_scale = 1
     color = (0, 180, 0)
 
     for index, item in enumerate(text_results, 1):
